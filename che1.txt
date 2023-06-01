@@ -1,0 +1,214 @@
+#define BLINKER_WIFI
+#define LED1 2
+
+#include <Blinker.h>
+#include <SimpleTimer.h>
+
+SimpleTimer timer;
+
+char auth[] = "你的blinker软件上获取的鉴权码";
+char ssid[] = "你的wifi名称";
+char pswd[] = "你的wifi密码";
+
+// 新建组件对象
+BlinkerButton Button1("btn-abc");
+BlinkerButton Button2("btn-shang");
+BlinkerButton Button3("btn-xia");
+BlinkerButton Button4("btn-zuo");
+BlinkerButton Button5("btn-you");
+BlinkerButton Button6("btn-stop");
+BlinkerNumber Number1("num-abc");
+
+
+int counter = 0;
+unsigned char uartping_in;
+int run_flag = 0;
+int stop_time = 0,stoptime_flag=0;
+
+hw_timer_t * timer0 =NULL;
+
+void Simple_timer_1() {
+ // if(stoptime_flag)stop_time++;
+ // if(stop_time>=5)
+ // {
+ //   run_flag=1;
+ //   stop_time = 0;
+ // }
+  //Serial2.print("255");
+  //Serial2.print(analogRead(36));
+}
+
+
+void HR8833_Motor_Setup(int motorID,int pin1,int pin2){//电机初始化 ID=1~4 定义四组电机
+  ledcSetup(motorID*2-2, 5000, 8);
+  ledcAttachPin(pin1, motorID*2-2);
+  ledcSetup(motorID*2-1, 5000, 8);
+  ledcAttachPin(pin2, motorID*2-1);
+}
+
+void HR8833_Motor_Speed(int motorID,int speed){//电机速度设置 ID=1~4,speed=-255~255
+  if (speed == 0){
+    ledcWrite(motorID*2-2, 0);
+    ledcWrite(motorID*2-1, 0);
+  }
+  else if (speed > 0){
+    ledcWrite(motorID*2-2, speed);
+    ledcWrite(motorID*2-1, 0);
+  }
+  else{
+    ledcWrite(motorID*2-2, 0);
+    ledcWrite(motorID*2-1, -speed);
+  }
+}
+
+
+// 按下按键即会执行该函数
+void button1_callback(const String & state) {
+    BLINKER_LOG("get button state: ", state);
+    digitalWrite(LED1, !digitalRead(LED1));
+    // digitalWrite(LED1,HIGH);
+    // digitalWrite(LED1,LOW);
+}
+void button2_callback(const String & state) {
+    BLINKER_LOG("get button state: ", state);
+   // digitalWrite(5,HIGH);
+   // digitalWrite(18,LOW);
+   //setMotor(18,5,0,0);
+  // setMotor(18,5,0,5);
+   //setMotor(18,5,0,10);
+   run_flag = 1;
+}
+void button3_callback(const String & state) {
+    BLINKER_LOG("get button state: ", state);
+   // digitalWrite(5,LOW);
+   // digitalWrite(18,HIGH);
+   run_flag = -1;
+
+}
+void button4_callback(const String & state) {
+    BLINKER_LOG("get button state: ", state);
+    digitalWrite(LED1, !digitalRead(LED1));
+    //digitalWrite(19,HIGH);
+    //digitalWrite(21,LOW);
+
+}
+void button5_callback(const String & state) {
+    BLINKER_LOG("get button state: ", state);
+    //digitalWrite(19,LOW);
+   // digitalWrite(21,HIGH);
+
+}
+void button6_callback(const String & state) {
+    BLINKER_LOG("get button state: ", state);
+    digitalWrite(5,LOW);
+    digitalWrite(18,LOW);
+    digitalWrite(19,LOW);
+    digitalWrite(21,LOW);
+    run_flag = 0;
+}
+
+// 如果未绑定的组件被触发，则会执行其中内容
+void dataRead(const String & data)
+{
+    BLINKER_LOG("Blinker readString: ", data);
+    counter++;
+    Number1.print(counter);
+}
+
+void setup() {
+    
+   timer.setInterval(1000L, Simple_timer_1);
+    // 初始化串口
+    Serial.begin(115200);
+    Serial2.begin(9600);
+    pinMode(5,OUTPUT);
+    pinMode(18,OUTPUT);
+    pinMode(19,OUTPUT);
+    pinMode(21,OUTPUT);
+    
+
+    BLINKER_DEBUG.stream(Serial);
+    
+    // 初始化有LED的IO
+    pinMode(LED_BUILTIN, OUTPUT);
+    digitalWrite(LED_BUILTIN, HIGH);
+    // 初始化blinker
+    Blinker.begin(auth, ssid, pswd);
+    Blinker.attachData(dataRead);
+    Button1.attach(button1_callback);
+    Button2.attach(button2_callback);
+    Button3.attach(button3_callback);
+    Button4.attach(button4_callback);
+    Button5.attach(button5_callback);
+    Button6.attach(button6_callback);
+    
+    pinMode(LED1,OUTPUT);
+    HR8833_Motor_Setup(1,5,18);
+    HR8833_Motor_Setup(2,19,21);
+    
+    pinMode(27,INPUT);//R
+    pinMode(26,INPUT);//Z
+    pinMode(25,INPUT);//L
+}
+
+void loop() {
+  //  Blinker.run();
+    timer.run();
+    uartping_in = Serial2.read();
+    //Serial2.print(analogRead(36));
+    if((analogRead(36)<3999)&&(run_flag==1))//25 26 27 L Z R //36 vp//4095  2085
+    {
+      HR8833_Motor_Speed(1,125);//zuo
+      HR8833_Motor_Speed(2,112);//you
+      stoptime_flag=1;
+      run_flag=2;
+    }
+    else if((analogRead(36)<3999)&&(run_flag==2))
+    {
+      HR8833_Motor_Speed(1,250);//zuo
+      HR8833_Motor_Speed(2,225);//you
+      run_flag=3;
+    }
+    else if((analogRead(36)<3999)&&(run_flag==3))
+    {
+      HR8833_Motor_Speed(1,0);//zuo
+      HR8833_Motor_Speed(2,0);//you
+      run_flag=4;
+    }
+    if(uartping_in == 0x10)
+    {
+      run_flag=1;
+      uartping_in = 0xff;
+    }
+    if(run_flag == 1)
+    {
+      HR8833_Motor_Speed(1,250);//2 zuo 125  
+      HR8833_Motor_Speed(2,225);//2 you  
+    }
+    else if(run_flag==2)
+    {
+      HR8833_Motor_Speed(1,125);//2 zuo 125  
+      HR8833_Motor_Speed(2,122);//2 you  
+    }
+    else if(run_flag==3)
+    {
+      HR8833_Motor_Speed(1,250);//2 zuo 125  
+      HR8833_Motor_Speed(2,225);//2 you  
+    }
+    else if(run_flag==4)
+    {
+      HR8833_Motor_Speed(1,0);//2 zuo 125  
+      HR8833_Motor_Speed(2,0);//2 you  
+    }
+    else if(run_flag == -1)
+    {
+      HR8833_Motor_Speed(1,-250);//zuo
+      HR8833_Motor_Speed(2,-240);//you
+    }
+    else
+    {
+      HR8833_Motor_Speed(1,0);//zuo
+      HR8833_Motor_Speed(2,0);//you
+    }
+    
+}
